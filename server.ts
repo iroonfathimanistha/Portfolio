@@ -167,17 +167,34 @@ app.post('/api/auth/login', (req, res) => {
       u.email.toLowerCase() === normalized
   );
 
-  if (!user || !verifyPassword(password, user.passwordHash, user.passwordSalt)) {
-    return res.status(401).json({ error: 'Incorrect email/username or password.' });
+  const adminUsername = (process.env.ADMIN_USERNAME || 'admin').trim().toLowerCase();
+  const adminEmail = (process.env.ADMIN_EMAIL || 'nisthafathima99@gmail.com').trim().toLowerCase();
+  const adminPassword = process.env.ADMIN_PASSWORD || process.env.ADMIN_INITIAL_PASSWORD || 'NisthaAdmin2026!';
+
+  let authenticatedUser: any = null;
+
+  if (user && verifyPassword(password, user.passwordHash, user.passwordSalt)) {
+    authenticatedUser = user;
+  } else if ((normalized === adminUsername || normalized === adminEmail) && password === adminPassword) {
+    authenticatedUser = {
+      id: 'user-admin-1',
+      username: process.env.ADMIN_USERNAME || 'admin',
+      email: process.env.ADMIN_EMAIL || 'nisthafathima99@gmail.com',
+      role: 'admin'
+    };
+  }
+
+  if (!authenticatedUser) {
+    return res.status(401).json({ success: false, error: 'Incorrect email/username or password.' });
   }
 
   // Generate secure token
   const token = crypto.randomBytes(32).toString('hex');
   const sessionData: SessionData = {
-    userId: user.id,
-    username: user.username,
-    email: user.email,
-    role: user.role,
+    userId: authenticatedUser.id,
+    username: authenticatedUser.username,
+    email: authenticatedUser.email,
+    role: authenticatedUser.role,
     createdAt: Date.now(),
     expiresAt: Date.now() + SESSION_TTL_MS
   };

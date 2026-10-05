@@ -35,9 +35,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers,
         credentials: 'include'
       });
+
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        setIsAuthenticated(false);
+        setUser(null);
+        return false;
+      }
+
       const data = await res.json();
 
-      if (data.authenticated && data.user) {
+      if (data && data.authenticated && data.user) {
         setIsAuthenticated(true);
         setUser(data.user);
         return true;
@@ -70,9 +78,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify({ username, password })
       });
 
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await res.text();
+        const snippet = text.slice(0, 120).trim();
+        return {
+          success: false,
+          error: res.status === 404
+            ? 'Authentication service route not found (404). Please verify deployment API configuration.'
+            : `Authentication service returned unexpected response (${res.status}): ${snippet}`
+        };
+      }
+
       const data = await res.json();
       if (!res.ok || !data.success) {
-        return { success: false, error: data.error || 'Authentication failed. Please verify credentials.' };
+        return {
+          success: false,
+          error: data.error || data.message || 'Incorrect email/username or password. Access denied.'
+        };
       }
 
       if (data.token) {

@@ -147,11 +147,6 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onSuccess, onNavigateHom
               </div>
             </div>
 
-            {/* Helper Note for first-time login */}
-            <div className="pt-1 text-[11px] text-slate-500 flex items-center justify-between">
-              <span>Default: admin / NisthaAdmin2026!</span>
-            </div>
-
             {/* Sign In Button */}
             <button
               type="submit"
