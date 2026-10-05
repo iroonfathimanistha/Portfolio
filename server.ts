@@ -369,9 +369,32 @@ async function startServer() {
   } else {
     const distPath = path.join(__dirname, 'dist');
     const indexHtmlPath = path.join(distPath, 'index.html');
+    const adminLoginPath = path.join(distPath, 'admin', 'login', 'index.html');
+    const adminPath = path.join(distPath, 'admin', 'index.html');
+
+    // Explicit SPA HTML entry points before static middleware
+    app.get(['/admin/login', '/admin/login/'], (_req, res) => {
+      if (fs.existsSync(adminLoginPath)) {
+        res.setHeader('Cache-Control', 'no-cache');
+        return res.sendFile(adminLoginPath);
+      }
+      res.setHeader('Cache-Control', 'no-cache');
+      return res.sendFile(indexHtmlPath);
+    });
+
+    app.get(['/admin', '/admin/*'], (_req, res) => {
+      if (fs.existsSync(adminPath)) {
+        res.setHeader('Cache-Control', 'no-cache');
+        return res.sendFile(adminPath);
+      }
+      res.setHeader('Cache-Control', 'no-cache');
+      return res.sendFile(indexHtmlPath);
+    });
+
     if (fs.existsSync(distPath)) {
       app.use(express.static(distPath, { maxAge: '1h' }));
     }
+
     app.get('*', (req, res) => {
       if (req.path.startsWith('/api')) {
         return res.status(404).json({ error: 'Endpoint not found' });

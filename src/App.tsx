@@ -114,16 +114,18 @@ function PortfolioApp() {
     }
   };
 
-  // Determine current experience:
-  const isLoginRoute = pathname === '/admin/login';
-  const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin/');
+  // Determine current experience (normalize trailing slashes)
+  const normalizedPath = pathname.replace(/\/+$/, '') || '/';
+  const isLoginRoute = normalizedPath === '/admin/login';
+  const isAdminRoute =
+    (normalizedPath === '/admin' || normalizedPath.startsWith('/admin/')) && !isLoginRoute;
 
   // Determine active admin tab from pathname
-  const adminSubpath = pathname.replace(/^\/admin\/?/, '');
+  const adminSubpath = normalizedPath.replace(/^\/admin\/?/, '');
   const activeAdminTab: AdminTab =
     adminSubpath === '' ? 'overview' : (adminSubpath as AdminTab);
 
-  // AUTH PROTECTION: If user tries to visit /admin or /admin/* without auth, redirect to /admin/login
+  // AUTH PROTECTION: If user tries to visit protected /admin or /admin/* without auth, redirect to /admin/login
   useEffect(() => {
     if (!isLoading && isAdminRoute && !isAuthenticated) {
       window.history.replaceState(null, '', '/admin/login');
