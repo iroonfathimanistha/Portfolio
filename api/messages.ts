@@ -1,36 +1,76 @@
 import fs from 'fs';
 import path from 'path';
-import { parseJsonBody } from './_lib';
+
+function sendJson(res: any, statusCode: number, data: any) {
+  res.statusCode = statusCode;
+  res.setHeader('Content-Type', 'application/json');
+  const payload = JSON.stringify(data);
+  if (typeof res.json === 'function') {
+    return res.json(data);
+  }
+  return res.end(payload);
+}
+
+async function getRequestBody(req: any): Promise<any> {
+  if (req.body) {
+    if (typeof req.body === 'object') return req.body;
+    if (typeof req.body === 'string') {
+      try {
+        return JSON.parse(req.body);
+      } catch {
+        return {};
+      }
+    }
+  }
+
+  if (req.readableEnded || !req.readable) {
+    return {};
+  }
+
+  return new Promise((resolve) => {
+    let raw = '';
+    req.on('data', (chunk: any) => {
+      raw += chunk;
+    });
+    req.on('end', () => {
+      try {
+        resolve(raw ? JSON.parse(raw) : {});
+      } catch {
+        resolve({});
+      }
+    });
+    req.on('error', () => {
+      resolve({});
+    });
+  });
+}
 
 const DATA_FILE = path.join(process.cwd(), 'data', 'cms-database.json');
 
 export default async function handler(req: any, res: any) {
-  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
-    res.setHeader('Allow', 'POST, OPTIONS');
-    res.statusCode = 200;
-    return res.end(JSON.stringify({ ok: true }));
+    return sendJson(res, 200, { ok: true });
   }
 
   if (req.method !== 'POST') {
-    res.statusCode = 405;
-    return res.end(
-      JSON.stringify({
-        error: `Method ${req.method} Not Allowed.`
-      })
-    );
+    return sendJson(res, 405, {
+      success: false,
+      message: `Method ${req.method} Not Allowed.`
+    });
   }
 
   try {
-    const { name, email, subject, message } = (await parseJsonBody(req)) || {};
+    const body = await getRequestBody(req);
+    const { name, email, subject, message } = body || {};
     if (!name || !email || !message) {
-      res.statusCode = 400;
-      return res.end(
-        JSON.stringify({
-          error: 'Please provide name, email, and message.'
-        })
-      );
+      return sendJson(res, 400, {
+        success: false,
+        message: 'Please provide name, email, and message.'
+      });
     }
 
     let dbData: any = {};
@@ -62,20 +102,15 @@ export default async function handler(req: any, res: any) {
       // In read-only lambdas, message is logged
     }
 
-    res.statusCode = 200;
-    return res.end(
-      JSON.stringify({
-        success: true,
-        id: newMessage.id
-      })
-    );
+    return sendJson(res, 200, {
+      success: true,
+      id: newMessage.id
+    });
   } catch (err: any) {
     console.error('[API /api/messages] Error:', err);
-    res.statusCode = 500;
-    return res.end(
-      JSON.stringify({
-        error: 'Failed to process contact message.'
-      })
-    );
+    return sendJson(res, 500, {
+      success: false,
+      message: 'Failed to process contact message.'
+    });
   }
 }
