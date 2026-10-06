@@ -16,10 +16,11 @@ import {
 } from 'lucide-react';
 
 export const AdminProfile: React.FC = () => {
-  const { profile, updateProfile } = useData();
+  const { profile, updateProfile, syncToServer } = useData();
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({ ...profile });
+  const [isSaving, setIsSaving] = useState(false);
   const [newSocial, setNewSocial] = useState<Partial<SocialLink>>({
     platform: 'github',
     label: '',
@@ -28,9 +29,21 @@ export const AdminProfile: React.FC = () => {
   });
   const [showAddSocial, setShowAddSocial] = useState(false);
 
-  const handleSave = () => {
-    updateProfile(formData);
-    toast('Profile and identity saved successfully!', 'success');
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      updateProfile(formData);
+      const ok = await syncToServer({ profile: formData });
+      if (ok) {
+        toast('Profile and identity saved and synced to database!', 'success');
+      } else {
+        toast('Notice: Local state saved. Server sync pending or requires re-login.', 'info');
+      }
+    } catch {
+      toast('Failed to save profile. Please retry.', 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleUpdateSocial = (id: string, updates: Partial<SocialLink>) => {
@@ -80,10 +93,11 @@ export const AdminProfile: React.FC = () => {
 
         <button
           onClick={handleSave}
-          className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white dark:text-slate-950 font-semibold text-xs flex items-center gap-2 transition-colors shadow-sm self-start sm:self-auto cursor-pointer"
+          disabled={isSaving}
+          className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white dark:text-slate-950 font-semibold text-xs flex items-center gap-2 transition-colors shadow-sm self-start sm:self-auto cursor-pointer"
         >
           <Save className="w-4 h-4" />
-          <span>Save Profile</span>
+          <span>{isSaving ? 'Saving to Database...' : 'Save Profile'}</span>
         </button>
       </div>
 

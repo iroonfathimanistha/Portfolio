@@ -4,8 +4,9 @@ import { useToast } from '../common/Toast';
 import { FileText, Upload, Trash2, Eye, CheckCircle, ExternalLink, Save, AlertCircle } from 'lucide-react';
 
 export const AdminResume: React.FC = () => {
-  const { profile, updateProfile, addMediaItem } = useData();
+  const { profile, updateProfile, syncToServer, addMediaItem } = useData();
   const { toast } = useToast();
+  const [isSaving, setIsSaving] = useState(false);
 
   const resume = profile.resume || {
     professionalTitle: profile.role,
@@ -25,14 +26,25 @@ export const AdminResume: React.FC = () => {
 
   const [isUploading, setIsUploading] = useState(false);
 
-  const handleSave = () => {
-    updateProfile({
-      resume: {
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const updatedResume = {
         ...formData,
         lastUpdated: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+      };
+      updateProfile({ resume: updatedResume });
+      const ok = await syncToServer({ profile: { ...profile, resume: updatedResume } });
+      if (ok) {
+        toast('Resume settings and publication status updated and synced!', 'success');
+      } else {
+        toast('Notice: Local state saved. Server sync pending.', 'info');
       }
-    });
-    toast('Resume settings and publication status updated!', 'success');
+    } catch {
+      toast('Failed to save resume. Please try again.', 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -99,10 +111,11 @@ export const AdminResume: React.FC = () => {
 
         <button
           onClick={handleSave}
-          className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white dark:text-slate-950 font-semibold text-xs flex items-center gap-2 transition-colors shadow-sm self-start sm:self-auto cursor-pointer"
+          disabled={isSaving}
+          className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white dark:text-slate-950 font-semibold text-xs flex items-center gap-2 transition-colors shadow-sm self-start sm:self-auto cursor-pointer"
         >
           <Save className="w-4 h-4" />
-          <span>Save Changes</span>
+          <span>{isSaving ? 'Saving to Database...' : 'Save Changes'}</span>
         </button>
       </div>
 

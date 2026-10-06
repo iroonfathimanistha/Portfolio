@@ -136,14 +136,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
             className="flex items-center gap-2.5 group text-left shrink-0 cursor-pointer"
           >
             <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-bold text-xs tracking-wider transition-all group-hover:border-emerald-500 shadow-sm">
-              NF
+              {profile.name ? profile.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'NF'}
             </div>
             <div className="flex flex-col">
               <span className="font-display font-bold text-sm sm:text-base text-[var(--text-primary)] group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-tight">
                 {profile.name}
               </span>
               <span className="text-[10px] sm:text-[11px] font-mono text-[var(--text-secondary)] leading-tight">
-                Software Engineering Undergraduate
+                {profile.role || 'Software Engineering Undergraduate'}
               </span>
             </div>
           </a>

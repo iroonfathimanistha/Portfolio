@@ -56,21 +56,17 @@ export const Hero: React.FC<HeroProps> = ({ onOpenResume }) => {
       <div className="max-w-[1200px] mx-auto px-6 md:px-12 w-full grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
         {/* LEFT COLUMN: Large Typography & Information Hierarchy */}
         <div className="lg:col-span-7 flex flex-col justify-center text-left">
-          {/* Small Eyebrow: Software Engineering Undergraduate */}
+          {/* Small Eyebrow: Role from CMS */}
           <div className="mb-5">
             <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 text-xs font-mono font-medium tracking-wide">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              Software Engineering Undergraduate
+              {profile.role || 'Software Engineering Undergraduate'}
             </span>
           </div>
 
-          {/* Main Heading: Building software with engineering fundamentals. */}
+          {/* Main Heading: Tagline from CMS */}
           <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[var(--text-primary)] tracking-tight leading-[1.08] mb-6 text-balance">
-            Building software with{' '}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 dark:from-emerald-400 dark:via-teal-300 dark:to-emerald-500">
-              engineering fundamentals
-            </span>
-            .
+            {profile.tagline || 'Building software with engineering fundamentals.'}
           </h1>
 
           {/* Short Professional Introduction */}
@@ -79,16 +75,17 @@ export const Hero: React.FC<HeroProps> = ({ onOpenResume }) => {
               {profile.shortIntro ||
                 'Undergraduate software engineer dedicated to building resilient distributed systems, high-integrity full-stack applications, and performant web products with strict architectural discipline.'}
             </p>
-            <p className="text-xs sm:text-sm font-mono text-[var(--text-muted)] flex flex-wrap items-center gap-x-2.5 gap-y-1 pt-1">
-              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Focus:</span>
-              <span>Software Engineering</span>
-              <span>·</span>
-              <span>Full-Stack Development</span>
-              <span>·</span>
-              <span>Backend Systems</span>
-              <span>·</span>
-              <span>AI/ML Learning</span>
-            </p>
+            {profile.engineeringInterests && profile.engineeringInterests.length > 0 && (
+              <p className="text-xs sm:text-sm font-mono text-[var(--text-muted)] flex flex-wrap items-center gap-x-2.5 gap-y-1 pt-1">
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Focus:</span>
+                {profile.engineeringInterests.slice(0, 4).map((interest, idx) => (
+                  <React.Fragment key={interest}>
+                    {idx > 0 && <span>·</span>}
+                    <span>{interest}</span>
+                  </React.Fragment>
+                ))}
+              </p>
+            )}
           </div>
 
           {/* Hero CTAs: View Projects, View Resume, Contact Me */}
@@ -157,7 +154,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenResume }) => {
                   {profile.name}
                 </p>
                 <p className="text-emerald-400 text-[11px]">
-                  Software Engineering Undergraduate
+                  {profile.role || 'Software Engineering Undergraduate'}
                 </p>
               </div>
             </div>

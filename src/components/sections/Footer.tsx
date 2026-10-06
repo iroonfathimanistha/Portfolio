@@ -39,12 +39,12 @@ export const Footer: React.FC = () => {
 
         {/* Title */}
         <p className="text-xs font-mono text-emerald-600 dark:text-emerald-400 font-semibold tracking-wide">
-          Software Engineering Undergraduate
+          {profile.role || 'Software Engineering Undergraduate'}
         </p>
 
         {/* Narrative */}
         <p className="text-xs sm:text-sm text-[var(--text-secondary)] max-w-lg leading-relaxed">
-          Building software with engineering fundamentals while growing toward professional software engineering and AI/ML engineering.
+          {profile.tagline || 'Building software with engineering fundamentals.'}
         </p>
 
         {/* Social Links (only configured & enabled: GitHub, LinkedIn, Medium, Email) */}

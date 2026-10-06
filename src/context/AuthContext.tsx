@@ -106,7 +106,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(data.user);
       return { success: true };
     } catch (err: any) {
-      return { success: false, error: err.message || 'Network error occurred during sign in.' };
+      const isNet = err?.name === 'TypeError' || String(err?.message || '').toLowerCase().includes('fetch');
+      return {
+        success: false,
+        error: isNet
+          ? 'Unable to connect to authentication service. Please check your connection and retry.'
+          : err.message || 'Authentication error occurred during sign in.'
+      };
     }
   };
 

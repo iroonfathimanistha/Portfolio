@@ -4,8 +4,9 @@ import { useToast } from '../common/Toast';
 import { Info, Plus, Trash2, ArrowUp, ArrowDown, Save, Sparkles, Target } from 'lucide-react';
 
 export const AdminAbout: React.FC = () => {
-  const { profile, updateProfile } = useData();
+  const { profile, updateProfile, syncToServer } = useData();
   const { toast } = useToast();
+  const [isSaving, setIsSaving] = useState(false);
 
   const [aboutText, setAboutText] = useState(profile.aboutText || '');
   const [careerDirection, setCareerDirection] = useState(profile.careerDirection || '');
@@ -22,14 +23,27 @@ export const AdminAbout: React.FC = () => {
   const [newInterest, setNewInterest] = useState('');
   const [newPrinciple, setNewPrinciple] = useState('');
 
-  const handleSave = () => {
-    updateProfile({
-      aboutText: aboutText.trim(),
-      careerDirection: careerDirection.trim(),
-      engineeringInterests: interests,
-      engineeringPrinciples: principles
-    });
-    toast('About section content saved successfully!', 'success');
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const updated = {
+        aboutText: aboutText.trim(),
+        careerDirection: careerDirection.trim(),
+        engineeringInterests: interests,
+        engineeringPrinciples: principles
+      };
+      updateProfile(updated);
+      const ok = await syncToServer({ profile: { ...profile, ...updated } });
+      if (ok) {
+        toast('About section content saved and synced to database!', 'success');
+      } else {
+        toast('Notice: Local state saved. Server sync pending.', 'info');
+      }
+    } catch {
+      toast('Failed to save changes. Please try again.', 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleAddInterest = () => {
@@ -86,10 +100,11 @@ export const AdminAbout: React.FC = () => {
 
         <button
           onClick={handleSave}
-          className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white dark:text-slate-950 font-semibold text-xs flex items-center gap-2 transition-colors shadow-sm self-start sm:self-auto cursor-pointer"
+          disabled={isSaving}
+          className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white dark:text-slate-950 font-semibold text-xs flex items-center gap-2 transition-colors shadow-sm self-start sm:self-auto cursor-pointer"
         >
           <Save className="w-4 h-4" />
-          <span>Save About Content</span>
+          <span>{isSaving ? 'Saving to Database...' : 'Save About Content'}</span>
         </button>
       </div>
 

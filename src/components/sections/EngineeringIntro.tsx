@@ -24,7 +24,7 @@ export const EngineeringIntro: React.FC = () => {
               Philosophy & Foundation
             </span>
             <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold text-[var(--text-primary)] leading-tight text-balance">
-              Building software with engineering fundamentals.
+              {profile.tagline || 'Building software with engineering fundamentals.'}
             </h2>
           </div>
 
@@ -40,7 +40,7 @@ export const EngineeringIntro: React.FC = () => {
             <div className="flex items-center gap-6 pt-2 text-xs font-mono text-[var(--text-muted)]">
               <span className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                Undergraduate SE
+                {profile.role || 'Undergraduate SE'}
               </span>
               <span>·</span>
               <span>Dean's List Honoree</span>

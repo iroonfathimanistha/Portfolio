@@ -89,6 +89,8 @@ interface DataContextType {
   deleteMessage: (id: string) => void;
   deleteAllDemoData: () => void;
   resetAllData: () => void;
+  syncToServer: (customPayload?: any) => Promise<boolean>;
+  refreshData: () => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -141,62 +143,130 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [mediaItems, setMediaItems] = useState<MediaItem[]>(() => getStored('mediaItems', initialMediaItems));
   const [messages, setMessages] = useState<ContactMessage[]>(() => getStored('messages', initialMessages));
 
-  // Fetch server database state on initial mount
-  useEffect(() => {
-    fetch('/api/data')
-      .then(res => res.json())
-      .then(data => {
-        if (data && !data.empty) {
-          if (data.profile) setProfile(data.profile);
-          if (data.projects) setProjects(data.projects);
-          if (data.skills) setSkills(data.skills);
-          if (data.education) setEducation(data.education);
-          if (data.experience) setExperience(data.experience);
-          if (data.journey) setJourney(data.journey);
-          if (data.certifications) setCertifications(data.certifications);
-          if (data.mediaItems) setMediaItems(data.mediaItems);
-          if (data.messages) setMessages(data.messages);
-          if (data.blogPosts) setBlogPosts(data.blogPosts);
+  const refreshData = async (): Promise<void> => {
+    try {
+      const res = await fetch('/api/data', { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && !data.empty) {
+        if (data.profile) {
+          setProfile(data.profile);
+          setStored('profile', data.profile);
         }
-      })
-      .catch(err => {
-        console.warn('[DataContext] Server sync load notice:', err);
-      });
+        if (data.projects) {
+          setProjects(data.projects);
+          setStored('projects', data.projects);
+        }
+        if (data.skills) {
+          setSkills(data.skills);
+          setStored('skills', data.skills);
+        }
+        if (data.education) {
+          setEducation(data.education);
+          setStored('education', data.education);
+        }
+        if (data.experience) {
+          setExperience(data.experience);
+          setStored('experience', data.experience);
+        }
+        if (data.journey) {
+          setJourney(data.journey);
+          setStored('journey', data.journey);
+        }
+        if (data.certifications) {
+          setCertifications(data.certifications);
+          setStored('certifications', data.certifications);
+        }
+        if (data.mediaItems) {
+          setMediaItems(data.mediaItems);
+          setStored('mediaItems', data.mediaItems);
+        }
+        if (data.messages) {
+          setMessages(data.messages);
+          setStored('messages', data.messages);
+        }
+        if (data.blogPosts) {
+          setBlogPosts(data.blogPosts);
+          setStored('blogPosts', data.blogPosts);
+        }
+        if (data.sectionsConfig) {
+          setSectionsConfig(data.sectionsConfig);
+          setStored('sectionsConfig', data.sectionsConfig);
+        }
+      }
+    } catch (err) {
+      console.warn('[DataContext] Server sync load notice:', err);
+    }
+  };
+
+  // Fetch server database state on initial mount & visibility change
+  useEffect(() => {
+    refreshData();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshData();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
-  // Sync states to local storage and server
-  useEffect(() => {
-    setStored('profile', profile);
-    const timeout = setTimeout(() => {
+  const syncToServer = async (customPayload?: any): Promise<boolean> => {
+    try {
       const storedToken = sessionStorage.getItem('cms_bearer_token');
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
       if (storedToken) {
-        fetch('/api/data', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${storedToken}`
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            profile,
-            projects,
-            skills,
-            education,
-            experience,
-            journey,
-            certifications,
-            mediaItems,
-            messages,
-            blogPosts
-          })
-        }).catch(() => {});
+        headers['Authorization'] = `Bearer ${storedToken}`;
       }
-    }, 600);
-    return () => clearTimeout(timeout);
-  }, [profile, projects, skills, education, experience, journey, certifications, mediaItems, messages, blogPosts]);
+
+      const payload = {
+        profile,
+        sectionsConfig,
+        projects,
+        skills,
+        focusAreas,
+        education,
+        experience,
+        journey,
+        certifications,
+        activities,
+        achievements,
+        learningItems,
+        activityFeed,
+        mediaItems,
+        messages,
+        blogPosts,
+        ...(customPayload || {})
+      };
+
+      const res = await fetch('/api/data', {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error('[DataContext] Server sync status:', res.status, text);
+        return false;
+      }
+
+      const resJson = await res.json();
+      return resJson.success === true;
+    } catch (err) {
+      console.error('[DataContext] Server sync network error:', err);
+      return false;
+    }
+  };
 
   const updateProfile = (data: Partial<SiteProfile>) => {
-    setProfile(prev => ({ ...prev, ...data }));
+    const updated = { ...profile, ...data };
+    setProfile(updated);
+    setStored('profile', updated);
+    syncToServer({ profile: updated });
   };
 
   const updateSectionConfig = (key: string, updates: Partial<SectionConfig>) => {
@@ -218,114 +288,129 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const getProjectBySlug = (slug: string) => projects.find(p => p.slug === slug || p.id === slug);
 
   const saveProject = (project: Project) => {
-    setProjects(prev => {
-      const idx = prev.findIndex(p => p.id === project.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = project;
-        return next;
-      }
-      return [project, ...prev];
-    });
-
-    // Update verified skill links automatically
-    if (project.technologies && project.technologies.length > 0) {
-      setSkills(prevSkills =>
-        prevSkills.map(sk => {
-          if (project.technologies.includes(sk.name)) {
-            const currentRelated = sk.relatedProjects || [];
-            if (!currentRelated.includes(project.title)) {
-              return { ...sk, relatedProjects: [...currentRelated, project.title] };
-            }
-          }
-          return sk;
-        })
-      );
+    let next: Project[] = [];
+    const idx = projects.findIndex(p => p.id === project.id);
+    if (idx >= 0) {
+      next = [...projects];
+      next[idx] = project;
+    } else {
+      next = [project, ...projects];
     }
+    setProjects(next);
+    setStored('projects', next);
+    syncToServer({ projects: next });
   };
 
   const deleteProject = (id: string) => {
-    setProjects(prev => prev.filter(p => p.id !== id));
+    const next = projects.filter(p => p.id !== id);
+    setProjects(next);
+    setStored('projects', next);
+    syncToServer({ projects: next });
   };
 
   const saveSkill = (skill: SkillItem) => {
-    setSkills(prev => {
-      const idx = prev.findIndex(s => s.id === skill.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = skill;
-        return next;
-      }
-      return [...prev, skill];
-    });
+    let next: SkillItem[] = [];
+    const idx = skills.findIndex(s => s.id === skill.id);
+    if (idx >= 0) {
+      next = [...skills];
+      next[idx] = skill;
+    } else {
+      next = [...skills, skill];
+    }
+    setSkills(next);
+    setStored('skills', next);
+    syncToServer({ skills: next });
   };
 
   const deleteSkill = (id: string) => {
-    setSkills(prev => prev.filter(s => s.id !== id));
+    const next = skills.filter(s => s.id !== id);
+    setSkills(next);
+    setStored('skills', next);
+    syncToServer({ skills: next });
   };
 
   const saveEducation = (edu: EducationItem) => {
-    setEducation(prev => {
-      const idx = prev.findIndex(e => e.id === edu.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = edu;
-        return next;
-      }
-      return [edu, ...prev];
-    });
+    let next: EducationItem[] = [];
+    const idx = education.findIndex(e => e.id === edu.id);
+    if (idx >= 0) {
+      next = [...education];
+      next[idx] = edu;
+    } else {
+      next = [edu, ...education];
+    }
+    setEducation(next);
+    setStored('education', next);
+    syncToServer({ education: next });
   };
 
   const deleteEducation = (id: string) => {
-    setEducation(prev => prev.filter(e => e.id !== id));
+    const next = education.filter(e => e.id !== id);
+    setEducation(next);
+    setStored('education', next);
+    syncToServer({ education: next });
   };
 
   const saveExperience = (exp: ExperienceItem) => {
-    setExperience(prev => {
-      const idx = prev.findIndex(e => e.id === exp.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = exp;
-        return next;
-      }
-      return [exp, ...prev];
-    });
+    let next: ExperienceItem[] = [];
+    const idx = experience.findIndex(e => e.id === exp.id);
+    if (idx >= 0) {
+      next = [...experience];
+      next[idx] = exp;
+    } else {
+      next = [exp, ...experience];
+    }
+    setExperience(next);
+    setStored('experience', next);
+    syncToServer({ experience: next });
   };
 
   const deleteExperience = (id: string) => {
-    setExperience(prev => prev.filter(e => e.id !== id));
+    const next = experience.filter(e => e.id !== id);
+    setExperience(next);
+    setStored('experience', next);
+    syncToServer({ experience: next });
   };
 
   const saveJourneyItem = (item: JourneyMilestone) => {
-    setJourney(prev => {
-      const idx = prev.findIndex(j => j.id === item.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = item;
-        return next;
-      }
-      return [item, ...prev];
-    });
+    let next: JourneyMilestone[] = [];
+    const idx = journey.findIndex(j => j.id === item.id);
+    if (idx >= 0) {
+      next = [...journey];
+      next[idx] = item;
+    } else {
+      next = [item, ...journey];
+    }
+    setJourney(next);
+    setStored('journey', next);
+    syncToServer({ journey: next });
   };
 
   const deleteJourneyItem = (id: string) => {
-    setJourney(prev => prev.filter(j => j.id !== id));
+    const next = journey.filter(j => j.id !== id);
+    setJourney(next);
+    setStored('journey', next);
+    syncToServer({ journey: next });
   };
 
   const saveCertification = (cert: Certification) => {
-    setCertifications(prev => {
-      const idx = prev.findIndex(c => c.id === cert.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = cert;
-        return next;
-      }
-      return [cert, ...prev];
-    });
+    let next: Certification[] = [];
+    const idx = certifications.findIndex(c => c.id === cert.id);
+    if (idx >= 0) {
+      next = [...certifications];
+      next[idx] = cert;
+    } else {
+      next = [cert, ...certifications];
+    }
+    setCertifications(next);
+    setStored('certifications', next);
+    syncToServer({ certifications: next });
   };
 
   const deleteCertification = (id: string) => {
-    setCertifications(prev => prev.filter(c => c.id !== id));
+    const next = certifications.filter(c => c.id !== id);
+    setCertifications(next);
+    setStored('certifications', next);
+    syncToServer({ certifications: next });
   };
 
   const saveActivity = (act: ActivityItem) => {
@@ -508,7 +593,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         markMessageRead,
         deleteMessage,
         deleteAllDemoData,
-        resetAllData
+        resetAllData,
+        syncToServer,
+        refreshData
       }}
     >
       {children}
