@@ -29,22 +29,32 @@ export const AdminCertifications: React.FC = () => {
     setEditingCert(newCert);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editingCert) return;
     if (!editingCert.title || !editingCert.organization) {
       toast('Title and Organization are required.', 'error');
       return;
     }
-    saveCertification(editingCert);
+    const title = editingCert.title;
     setEditingCert(null);
-    toast(`Certification "${editingCert.title}" saved!`, 'success');
+    const ok = await saveCertification(editingCert);
+    if (ok) {
+      toast(`Certification "${title}" saved and synced to database!`, 'success');
+    } else {
+      toast(`Certification saved locally.`, 'info');
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!certToDelete) return;
-    deleteCertification(certToDelete.id);
+    const title = certToDelete.title;
     setCertToDelete(null);
-    toast('Certification deleted.', 'info');
+    const ok = await deleteCertification(certToDelete.id);
+    if (ok) {
+      toast(`Certification "${title}" deleted from database.`, 'info');
+    } else {
+      toast(`Certification deleted locally.`, 'info');
+    }
   };
 
   return (

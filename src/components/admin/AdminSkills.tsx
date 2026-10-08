@@ -63,27 +63,37 @@ export const AdminSkills: React.FC = () => {
     setEditingSkill(newSkill);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editingSkill) return;
     if (!editingSkill.name.trim()) {
       toast('Skill Name is required.', 'error');
       return;
     }
-    saveSkill({
+    const skillName = editingSkill.name.trim();
+    const ok = await saveSkill({
       ...editingSkill,
-      name: editingSkill.name.trim(),
+      name: skillName,
       description: editingSkill.description?.trim() || '',
       officialUrl: editingSkill.officialUrl?.trim() || ''
     });
     setEditingSkill(null);
-    toast(`Skill "${editingSkill.name}" saved!`, 'success');
+    if (ok) {
+      toast(`Skill "${skillName}" saved and synced to database!`, 'success');
+    } else {
+      toast(`Notice: Skill "${skillName}" saved locally. Verify database connection.`, 'info');
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!skillToDelete) return;
-    deleteSkill(skillToDelete.id);
+    const ok = await deleteSkill(skillToDelete.id);
+    const deletedName = skillToDelete.name;
     setSkillToDelete(null);
-    toast('Skill removed from technology list.', 'info');
+    if (ok) {
+      toast(`Skill "${deletedName}" removed and synced.`, 'info');
+    } else {
+      toast(`Skill removed locally.`, 'info');
+    }
   };
 
   const handleToggleEnabled = (skill: SkillItem) => {

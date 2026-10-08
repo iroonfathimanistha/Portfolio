@@ -30,22 +30,32 @@ export const AdminEducation: React.FC = () => {
     setEditingEdu(newEdu);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editingEdu) return;
     if (!editingEdu.university || !editingEdu.degree) {
       toast('University and Degree are required.', 'error');
       return;
     }
-    saveEducation(editingEdu);
+    const degree = editingEdu.degree;
     setEditingEdu(null);
-    toast(`Education record "${editingEdu.degree}" saved!`, 'success');
+    const ok = await saveEducation(editingEdu);
+    if (ok) {
+      toast(`Education record "${degree}" saved and synced to database!`, 'success');
+    } else {
+      toast(`Education record saved locally.`, 'info');
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!eduToDelete) return;
-    deleteEducation(eduToDelete.id);
+    const degree = eduToDelete.degree;
     setEduToDelete(null);
-    toast('Education record deleted.', 'info');
+    const ok = await deleteEducation(eduToDelete.id);
+    if (ok) {
+      toast(`Education record "${degree}" deleted from database.`, 'info');
+    } else {
+      toast(`Education record deleted locally.`, 'info');
+    }
   };
 
   return (

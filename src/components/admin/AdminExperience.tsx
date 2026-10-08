@@ -28,22 +28,32 @@ export const AdminExperience: React.FC = () => {
     setEditingExp(newExp);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editingExp) return;
     if (!editingExp.organization || !editingExp.role) {
       toast('Organization and Role are required.', 'error');
       return;
     }
-    saveExperience(editingExp);
+    const role = editingExp.role;
     setEditingExp(null);
-    toast(`Experience record "${editingExp.role}" saved!`, 'success');
+    const ok = await saveExperience(editingExp);
+    if (ok) {
+      toast(`Experience record "${role}" saved and synced to database!`, 'success');
+    } else {
+      toast(`Experience record saved locally.`, 'info');
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!expToDelete) return;
-    deleteExperience(expToDelete.id);
+    const role = expToDelete.role;
     setExpToDelete(null);
-    toast('Experience record deleted.', 'info');
+    const ok = await deleteExperience(expToDelete.id);
+    if (ok) {
+      toast(`Experience record "${role}" deleted from database.`, 'info');
+    } else {
+      toast(`Experience record deleted locally.`, 'info');
+    }
   };
 
   return (

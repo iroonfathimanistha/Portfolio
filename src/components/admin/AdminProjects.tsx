@@ -81,7 +81,7 @@ export const AdminProjects: React.FC = () => {
     setEditingProject({ ...editingProject, technologies: updated });
   };
 
-  const handleSave = (publishState?: boolean) => {
+  const handleSave = async (publishState?: boolean) => {
     if (!editingProject) return;
 
     if (!editingProject.title.trim() || !editingProject.description.trim()) {
@@ -94,21 +94,30 @@ export const AdminProjects: React.FC = () => {
       published: publishState !== undefined ? publishState : editingProject.published
     };
 
-    saveProject(toSave);
     setEditingProject(null);
+    const ok = await saveProject(toSave);
 
-    if (toSave.published) {
-      toast(`Project "${toSave.title}" published to portfolio!`, 'success');
+    if (ok) {
+      if (toSave.published) {
+        toast(`Project "${toSave.title}" saved and published to portfolio!`, 'success');
+      } else {
+        toast(`Project "${toSave.title}" saved as draft in database.`, 'info');
+      }
     } else {
-      toast(`Project saved as draft (unpublished).`, 'info');
+      toast(`Project "${toSave.title}" saved locally. Check database connection.`, 'info');
     }
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!projectToDelete) return;
-    deleteProject(projectToDelete.id);
-    toast(`Project "${projectToDelete.title}" deleted.`, 'info');
+    const title = projectToDelete.title;
     setProjectToDelete(null);
+    const ok = await deleteProject(projectToDelete.id);
+    if (ok) {
+      toast(`Project "${title}" deleted from database.`, 'info');
+    } else {
+      toast(`Project "${title}" deleted locally.`, 'info');
+    }
   };
 
   return (

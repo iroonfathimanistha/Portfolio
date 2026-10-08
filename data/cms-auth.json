@@ -1,0 +1,13 @@
+{
+  "users": [
+    {
+      "id": "user-admin-1",
+      "username": "admin",
+      "email": "nisthafathima99@gmail.com",
+      "role": "admin",
+      "passwordHash": "913e8aa51ae80be629edc8eedc087782f30d79b7de7a36793417ff6df57445836d10423f3c0ee1ac00d45622dbfb29ce740ad46bfa719d59a3cc3edb5bbee641",
+      "passwordSalt": "5470c82dda8fd2f2cde7d4cf927bd13f",
+      "createdAt": "2026-10-08T16:47:52.012Z"
+    }
+  ]
+}

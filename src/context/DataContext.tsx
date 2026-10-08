@@ -39,7 +39,7 @@ import {
 
 interface DataContextType {
   profile: SiteProfile;
-  updateProfile: (profile: Partial<SiteProfile>) => void;
+  updateProfile: (profile: Partial<SiteProfile>) => Promise<boolean>;
   sectionsConfig: SectionConfig[];
   updateSectionConfig: (key: string, updates: Partial<SectionConfig>) => void;
   reorderSections: (newOrder: SectionConfig[]) => void;
@@ -47,24 +47,24 @@ interface DataContextType {
   projects: Project[];
   getPublishedProjects: () => Project[];
   getProjectBySlug: (slug: string) => Project | undefined;
-  saveProject: (project: Project) => void;
-  deleteProject: (id: string) => void;
+  saveProject: (project: Project) => Promise<boolean>;
+  deleteProject: (id: string) => Promise<boolean>;
   skills: SkillItem[];
-  saveSkill: (skill: SkillItem) => void;
-  deleteSkill: (id: string) => void;
+  saveSkill: (skill: SkillItem) => Promise<boolean>;
+  deleteSkill: (id: string) => Promise<boolean>;
   focusAreas: FocusArea[];
   education: EducationItem[];
-  saveEducation: (edu: EducationItem) => void;
-  deleteEducation: (id: string) => void;
+  saveEducation: (edu: EducationItem) => Promise<boolean>;
+  deleteEducation: (id: string) => Promise<boolean>;
   experience: ExperienceItem[];
-  saveExperience: (exp: ExperienceItem) => void;
-  deleteExperience: (id: string) => void;
+  saveExperience: (exp: ExperienceItem) => Promise<boolean>;
+  deleteExperience: (id: string) => Promise<boolean>;
   journey: JourneyMilestone[];
-  saveJourneyItem: (item: JourneyMilestone) => void;
-  deleteJourneyItem: (id: string) => void;
+  saveJourneyItem: (item: JourneyMilestone) => Promise<boolean>;
+  deleteJourneyItem: (id: string) => Promise<boolean>;
   certifications: Certification[];
-  saveCertification: (cert: Certification) => void;
-  deleteCertification: (id: string) => void;
+  saveCertification: (cert: Certification) => Promise<boolean>;
+  deleteCertification: (id: string) => Promise<boolean>;
   activities: ActivityItem[];
   saveActivity: (act: ActivityItem) => void;
   deleteActivity: (id: string) => void;
@@ -262,11 +262,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const updateProfile = (data: Partial<SiteProfile>) => {
+  const updateProfile = (data: Partial<SiteProfile>): Promise<boolean> => {
     const updated = { ...profile, ...data };
     setProfile(updated);
     setStored('profile', updated);
-    syncToServer({ profile: updated });
+    return syncToServer({ profile: updated });
   };
 
   const updateSectionConfig = (key: string, updates: Partial<SectionConfig>) => {
@@ -287,7 +287,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const getPublishedProjects = () => projects.filter(p => p.published);
   const getProjectBySlug = (slug: string) => projects.find(p => p.slug === slug || p.id === slug);
 
-  const saveProject = (project: Project) => {
+  const saveProject = (project: Project): Promise<boolean> => {
     let next: Project[] = [];
     const idx = projects.findIndex(p => p.id === project.id);
     if (idx >= 0) {
@@ -298,17 +298,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setProjects(next);
     setStored('projects', next);
-    syncToServer({ projects: next });
+    return syncToServer({ projects: next });
   };
 
-  const deleteProject = (id: string) => {
+  const deleteProject = (id: string): Promise<boolean> => {
     const next = projects.filter(p => p.id !== id);
     setProjects(next);
     setStored('projects', next);
-    syncToServer({ projects: next });
+    return syncToServer({ projects: next });
   };
 
-  const saveSkill = (skill: SkillItem) => {
+  const saveSkill = (skill: SkillItem): Promise<boolean> => {
     let next: SkillItem[] = [];
     const idx = skills.findIndex(s => s.id === skill.id);
     if (idx >= 0) {
@@ -319,17 +319,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setSkills(next);
     setStored('skills', next);
-    syncToServer({ skills: next });
+    return syncToServer({ skills: next });
   };
 
-  const deleteSkill = (id: string) => {
+  const deleteSkill = (id: string): Promise<boolean> => {
     const next = skills.filter(s => s.id !== id);
     setSkills(next);
     setStored('skills', next);
-    syncToServer({ skills: next });
+    return syncToServer({ skills: next });
   };
 
-  const saveEducation = (edu: EducationItem) => {
+  const saveEducation = (edu: EducationItem): Promise<boolean> => {
     let next: EducationItem[] = [];
     const idx = education.findIndex(e => e.id === edu.id);
     if (idx >= 0) {
@@ -340,17 +340,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setEducation(next);
     setStored('education', next);
-    syncToServer({ education: next });
+    return syncToServer({ education: next });
   };
 
-  const deleteEducation = (id: string) => {
+  const deleteEducation = (id: string): Promise<boolean> => {
     const next = education.filter(e => e.id !== id);
     setEducation(next);
     setStored('education', next);
-    syncToServer({ education: next });
+    return syncToServer({ education: next });
   };
 
-  const saveExperience = (exp: ExperienceItem) => {
+  const saveExperience = (exp: ExperienceItem): Promise<boolean> => {
     let next: ExperienceItem[] = [];
     const idx = experience.findIndex(e => e.id === exp.id);
     if (idx >= 0) {
@@ -361,17 +361,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setExperience(next);
     setStored('experience', next);
-    syncToServer({ experience: next });
+    return syncToServer({ experience: next });
   };
 
-  const deleteExperience = (id: string) => {
+  const deleteExperience = (id: string): Promise<boolean> => {
     const next = experience.filter(e => e.id !== id);
     setExperience(next);
     setStored('experience', next);
-    syncToServer({ experience: next });
+    return syncToServer({ experience: next });
   };
 
-  const saveJourneyItem = (item: JourneyMilestone) => {
+  const saveJourneyItem = (item: JourneyMilestone): Promise<boolean> => {
     let next: JourneyMilestone[] = [];
     const idx = journey.findIndex(j => j.id === item.id);
     if (idx >= 0) {
@@ -382,17 +382,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setJourney(next);
     setStored('journey', next);
-    syncToServer({ journey: next });
+    return syncToServer({ journey: next });
   };
 
-  const deleteJourneyItem = (id: string) => {
+  const deleteJourneyItem = (id: string): Promise<boolean> => {
     const next = journey.filter(j => j.id !== id);
     setJourney(next);
     setStored('journey', next);
-    syncToServer({ journey: next });
+    return syncToServer({ journey: next });
   };
 
-  const saveCertification = (cert: Certification) => {
+  const saveCertification = (cert: Certification): Promise<boolean> => {
     let next: Certification[] = [];
     const idx = certifications.findIndex(c => c.id === cert.id);
     if (idx >= 0) {
@@ -403,14 +403,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setCertifications(next);
     setStored('certifications', next);
-    syncToServer({ certifications: next });
+    return syncToServer({ certifications: next });
   };
 
-  const deleteCertification = (id: string) => {
+  const deleteCertification = (id: string): Promise<boolean> => {
     const next = certifications.filter(c => c.id !== id);
     setCertifications(next);
     setStored('certifications', next);
-    syncToServer({ certifications: next });
+    return syncToServer({ certifications: next });
   };
 
   const saveActivity = (act: ActivityItem) => {
