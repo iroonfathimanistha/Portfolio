@@ -69,31 +69,53 @@ async function getRequestBody(req: any): Promise<any> {
 }
 
 // -------------------------------------------------------------
-// POSTGRESQL DATABASE CLIENT (SINGLE SOURCE OF TRUTH)
+// POSTGRESQL DATABASE CLIENT
 // -------------------------------------------------------------
 let dbPool: pg.Pool | null = null;
-let dbInitialized = false;
+let poolConnectionString: string | null = null;
+let isTableReady = false;
 
 function getDbPool(): pg.Pool | null {
-  const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
-  if (!dbUrl) return null;
+  const dbUrl = (process.env.DATABASE_URL || process.env.POSTGRES_URL || '').trim();
+  if (!dbUrl) {
+    if (dbPool) {
+      dbPool.end().catch(() => {});
+      dbPool = null;
+      poolConnectionString = null;
+      isTableReady = false;
+    }
+    return null;
+  }
 
-  if (!dbPool) {
+  // Re-create pool if connection string changed
+  if (!dbPool || poolConnectionString !== dbUrl) {
+    if (dbPool) {
+      dbPool.end().catch(() => {});
+    }
+    poolConnectionString = dbUrl;
+    isTableReady = false;
+    const isLocal = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1');
     dbPool = new pg.Pool({
       connectionString: dbUrl,
-      ssl: {
+      ssl: isLocal ? false : {
         rejectUnauthorized: false
       },
-      max: 5,
+      max: 3,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000
+      connectionTimeoutMillis: 10000
+    });
+
+    dbPool.on('error', (err) => {
+      console.error('[PostgreSQL Pool Error]:', err.message);
+      // Invalidate pool so next call gets fresh connection
+      isTableReady = false;
     });
   }
   return dbPool;
 }
 
-async function ensureTableInitialized(pool: pg.Pool) {
-  if (dbInitialized) return;
+async function ensureTableInitialized(pool: pg.Pool): Promise<void> {
+  if (isTableReady) return;
   await pool.query(`
     CREATE TABLE IF NOT EXISTS portfolio_cms (
       id VARCHAR(50) PRIMARY KEY,
@@ -101,98 +123,24 @@ async function ensureTableInitialized(pool: pg.Pool) {
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     );
   `);
-  dbInitialized = true;
+  isTableReady = true;
 }
 
-// Local filesystem fallback (used only for initial offline development)
 const REPO_DATA_FILE = path.join(process.cwd(), 'data', 'cms-database.json');
-const TMP_DATA_FILE = path.join('/tmp', 'cms-database.json');
 
-function readLocalSeed(): any {
-  if (fs.existsSync(TMP_DATA_FILE)) {
-    try {
-      return JSON.parse(fs.readFileSync(TMP_DATA_FILE, 'utf-8'));
-    } catch {}
-  }
+function readRepoSeed(): any {
   if (fs.existsSync(REPO_DATA_FILE)) {
     try {
       return JSON.parse(fs.readFileSync(REPO_DATA_FILE, 'utf-8'));
-    } catch {}
+    } catch (err) {
+      console.warn('[Seed] Could not read repo seed file:', err);
+    }
   }
   return { empty: true };
 }
 
-function writeLocalSeed(data: any) {
-  try {
-    fs.writeFileSync(TMP_DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
-  } catch {}
-  try {
-    const dir = path.dirname(REPO_DATA_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(REPO_DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
-  } catch {}
-}
-
-export async function getDatabaseRecord(): Promise<any> {
-  const pool = getDbPool();
-
-  if (pool) {
-    try {
-      await ensureTableInitialized(pool);
-      const res = await pool.query(`SELECT data FROM portfolio_cms WHERE id = 'main' LIMIT 1;`);
-      if (res.rows && res.rows.length > 0 && res.rows[0].data) {
-        return res.rows[0].data;
-      }
-
-      // If database table is currently empty, seed it once with repo seed data
-      const seedData = readLocalSeed();
-      if (seedData && !seedData.empty) {
-        await pool.query(
-          `INSERT INTO portfolio_cms (id, data, updated_at) VALUES ('main', $1, NOW()) ON CONFLICT (id) DO NOTHING;`,
-          [JSON.stringify(seedData)]
-        );
-        return seedData;
-      }
-    } catch (err) {
-      console.error('[Database] PostgreSQL read query failed:', err);
-    }
-  }
-
-  // Memory/Local fallback when running locally without DATABASE_URL
-  if ((globalThis as any).__cmsMemoryCache) {
-    return (globalThis as any).__cmsMemoryCache;
-  }
-  const fallback = readLocalSeed();
-  (globalThis as any).__cmsMemoryCache = fallback;
-  return fallback;
-}
-
-export async function setDatabaseRecord(newData: any): Promise<{ success: boolean; provider: string; error?: string }> {
-  (globalThis as any).__cmsMemoryCache = newData;
-
-  const pool = getDbPool();
-  if (pool) {
-    try {
-      await ensureTableInitialized(pool);
-      await pool.query(
-        `INSERT INTO portfolio_cms (id, data, updated_at)
-         VALUES ('main', $1, NOW())
-         ON CONFLICT (id) DO UPDATE SET data = $1, updated_at = NOW();`,
-        [JSON.stringify(newData)]
-      );
-      return { success: true, provider: 'PostgreSQL' };
-    } catch (err: any) {
-      console.error('[Database] PostgreSQL write query failed:', err);
-      return { success: false, provider: 'PostgreSQL', error: err.message || 'Database query execution failed' };
-    }
-  }
-
-  // Local write for local development
-  writeLocalSeed(newData);
-  return { success: true, provider: 'LocalDisk' };
-}
-
 export default async function handler(req: any, res: any) {
+  // CORS Headers
   const origin = req.headers?.origin;
   if (origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
@@ -203,19 +151,83 @@ export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
+  // Anti-caching headers (critical for Vercel Serverless / CDN)
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+
   if (req.method === 'OPTIONS') {
     return sendJson(res, 200, { ok: true });
   }
 
-  // PUBLIC & ADMIN DATA RETRIEVAL
+  const pool = getDbPool();
+  const isVercelProd = Boolean(process.env.VERCEL || process.env.NODE_ENV === 'production');
+
+  // -----------------------------------------------------------
+  // 1. GET /api/data: READ CURRENT STATE FROM POSTGRESQL
+  // -----------------------------------------------------------
   if (req.method === 'GET') {
-    const data = await getDatabaseRecord();
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    return sendJson(res, 200, data);
+    if (!pool) {
+      res.setHeader('x-database-status', 'MISSING_DATABASE_URL');
+      if (isVercelProd) {
+        console.warn('[API /api/data] WARNING: DATABASE_URL is not set in production. Serving read-only fallback seed.');
+      }
+      const seed = readRepoSeed();
+      return sendJson(res, 200, {
+        ...seed,
+        _meta: {
+          databaseConfigured: false,
+          warning: 'DATABASE_URL is not configured in Vercel environment variables. Changes cannot be persisted.'
+        }
+      });
+    }
+
+    try {
+      await ensureTableInitialized(pool);
+      const queryResult = await pool.query(`SELECT data, updated_at FROM portfolio_cms WHERE id = 'main' LIMIT 1;`);
+
+      if (queryResult.rows && queryResult.rows.length > 0 && queryResult.rows[0].data) {
+        let dbData = queryResult.rows[0].data;
+        if (typeof dbData === 'string') {
+          try {
+            dbData = JSON.parse(dbData);
+          } catch (e) {
+            console.warn('[API /api/data] Could not parse dbData string:', e);
+          }
+        }
+        res.setHeader('x-database-status', 'CONNECTED');
+        res.setHeader('x-database-updated-at', queryResult.rows[0].updated_at || '');
+        return sendJson(res, 200, dbData);
+      }
+
+      // If database table is fresh and empty, seed it once with the initial seed data
+      const initialSeed = readRepoSeed();
+      if (initialSeed && !initialSeed.empty) {
+        await pool.query(
+          `INSERT INTO portfolio_cms (id, data, updated_at) VALUES ('main', $1::jsonb, NOW()) ON CONFLICT (id) DO NOTHING;`,
+          [JSON.stringify(initialSeed)]
+        );
+        res.setHeader('x-database-status', 'SEEDED');
+        return sendJson(res, 200, initialSeed);
+      }
+
+      return sendJson(res, 200, { empty: true });
+    } catch (err: any) {
+      console.error('[API /api/data] PostgreSQL query error:', err.message);
+      res.setHeader('x-database-status', 'QUERY_FAILED');
+      return sendJson(res, 500, {
+        error: 'DATABASE_QUERY_FAILED',
+        message: `Failed to query PostgreSQL database: ${err.message}`
+      });
+    }
   }
 
-  // ADMIN PERSISTENT WRITE
+  // -----------------------------------------------------------
+  // 2. POST /api/data: WRITE UPDATES TO POSTGRESQL
+  // -----------------------------------------------------------
   if (req.method === 'POST') {
+    // Authenticate Admin
     let token: string | null = null;
     const authHeader = req.headers?.authorization;
     if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
@@ -235,7 +247,18 @@ export default async function handler(req: any, res: any) {
     if (!session) {
       return sendJson(res, 401, {
         success: false,
-        message: 'Unauthorized: Admin authentication required.'
+        error: 'UNAUTHORIZED',
+        message: 'Admin authentication required to update portfolio.'
+      });
+    }
+
+    // STRICT CHECK: If DATABASE_URL is missing, DO NOT fake success!
+    if (!pool) {
+      console.error('[API /api/data] REJECTED: POST /api/data called but DATABASE_URL is not set in environment.');
+      return sendJson(res, 503, {
+        success: false,
+        error: 'DATABASE_URL_NOT_CONFIGURED',
+        message: 'DATABASE_URL is not set in Vercel Environment Variables. Cannot save changes to PostgreSQL. Please configure DATABASE_URL in Vercel Project Settings.'
       });
     }
 
@@ -244,39 +267,54 @@ export default async function handler(req: any, res: any) {
       if (!payload || typeof payload !== 'object') {
         return sendJson(res, 400, {
           success: false,
-          message: 'Invalid payload.'
+          error: 'INVALID_PAYLOAD',
+          message: 'Invalid payload provided for update.'
         });
       }
 
-      // Fetch current database state and merge to avoid wiping other tables
-      const current = await getDatabaseRecord();
+      await ensureTableInitialized(pool);
+
+      // Fetch current database record to merge with incoming update
+      let currentData: any = {};
+      const currentRes = await pool.query(`SELECT data FROM portfolio_cms WHERE id = 'main' LIMIT 1;`);
+      if (currentRes.rows && currentRes.rows.length > 0 && currentRes.rows[0].data) {
+        const raw = currentRes.rows[0].data;
+        currentData = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      } else {
+        currentData = readRepoSeed();
+      }
+
       const merged = {
-        ...(current && !current.empty ? current : {}),
+        ...(currentData && !currentData.empty ? currentData : {}),
         ...payload,
         lastUpdated: new Date().toISOString()
       };
 
-      const result = await setDatabaseRecord(merged);
-      if (!result.success) {
-        return sendJson(res, 500, {
-          success: false,
-          message: `Persistent database write failed: ${result.error}`,
-          provider: result.provider
-        });
-      }
+      // Atomic PostgreSQL Upsert
+      const writeResult = await pool.query(
+        `INSERT INTO portfolio_cms (id, data, updated_at)
+         VALUES ('main', $1::jsonb, NOW())
+         ON CONFLICT (id) DO UPDATE SET data = $1::jsonb, updated_at = NOW()
+         RETURNING updated_at;`,
+        [JSON.stringify(merged)]
+      );
+
+      const savedTimestamp = writeResult.rows[0]?.updated_at || new Date().toISOString();
+      console.log(`[API /api/data] Successfully persisted to PostgreSQL at ${savedTimestamp}`);
 
       return sendJson(res, 200, {
         success: true,
-        message: 'Portfolio record updated in persistent database successfully.',
-        provider: result.provider,
-        savedAt: merged.lastUpdated,
+        provider: 'PostgreSQL',
+        message: 'Portfolio record successfully persisted to PostgreSQL database.',
+        savedAt: savedTimestamp,
         data: merged
       });
     } catch (err: any) {
-      console.error('[API /api/data] Write failure:', err);
+      console.error('[API /api/data] PostgreSQL write failed:', err);
       return sendJson(res, 500, {
         success: false,
-        message: 'Internal server error processing database update.'
+        error: 'POSTGRESQL_WRITE_FAILED',
+        message: `Database write operation failed: ${err.message}`
       });
     }
   }

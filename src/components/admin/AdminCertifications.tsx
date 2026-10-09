@@ -7,7 +7,7 @@ import { ImageUploader } from './ImageUploader';
 import { Plus, Edit2, Trash2, Award, Calendar, ExternalLink, ShieldCheck, X, Save } from 'lucide-react';
 
 export const AdminCertifications: React.FC = () => {
-  const { certifications, skills, saveCertification, deleteCertification } = useData();
+  const { certifications, skills, saveCertification, deleteCertification, lastSyncError } = useData();
   const { toast } = useToast();
 
   const [editingCert, setEditingCert] = useState<Certification | null>(null);
@@ -36,24 +36,24 @@ export const AdminCertifications: React.FC = () => {
       return;
     }
     const title = editingCert.title;
-    setEditingCert(null);
     const ok = await saveCertification(editingCert);
     if (ok) {
-      toast(`Certification "${title}" saved and synced to database!`, 'success');
+      setEditingCert(null);
+      toast(`Certification "${title}" saved to PostgreSQL database!`, 'success');
     } else {
-      toast(`Certification saved locally.`, 'info');
+      toast(lastSyncError || `Failed to save certification.`, 'error');
     }
   };
 
   const handleDelete = async () => {
     if (!certToDelete) return;
     const title = certToDelete.title;
-    setCertToDelete(null);
     const ok = await deleteCertification(certToDelete.id);
     if (ok) {
-      toast(`Certification "${title}" deleted from database.`, 'info');
+      setCertToDelete(null);
+      toast(`Certification "${title}" deleted from PostgreSQL database.`, 'info');
     } else {
-      toast(`Certification deleted locally.`, 'info');
+      toast(lastSyncError || `Failed to delete certification.`, 'error');
     }
   };
 

@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 
 export const AdminProjects: React.FC = () => {
-  const { projects, skills, saveProject, deleteProject } = useData();
+  const { projects, skills, saveProject, deleteProject, lastSyncError } = useData();
   const { toast } = useToast();
 
   const [search, setSearch] = useState('');
@@ -94,29 +94,29 @@ export const AdminProjects: React.FC = () => {
       published: publishState !== undefined ? publishState : editingProject.published
     };
 
-    setEditingProject(null);
     const ok = await saveProject(toSave);
 
     if (ok) {
+      setEditingProject(null);
       if (toSave.published) {
-        toast(`Project "${toSave.title}" saved and published to portfolio!`, 'success');
+        toast(`Project "${toSave.title}" saved and published to PostgreSQL database!`, 'success');
       } else {
-        toast(`Project "${toSave.title}" saved as draft in database.`, 'info');
+        toast(`Project "${toSave.title}" saved as draft in PostgreSQL database.`, 'info');
       }
     } else {
-      toast(`Project "${toSave.title}" saved locally. Check database connection.`, 'info');
+      toast(lastSyncError || `Failed to save project. Check DATABASE_URL in Vercel.`, 'error');
     }
   };
 
   const handleDeleteConfirm = async () => {
     if (!projectToDelete) return;
     const title = projectToDelete.title;
-    setProjectToDelete(null);
     const ok = await deleteProject(projectToDelete.id);
     if (ok) {
-      toast(`Project "${title}" deleted from database.`, 'info');
+      setProjectToDelete(null);
+      toast(`Project "${title}" deleted from PostgreSQL database.`, 'info');
     } else {
-      toast(`Project "${title}" deleted locally.`, 'info');
+      toast(lastSyncError || `Failed to delete project from database.`, 'error');
     }
   };
 

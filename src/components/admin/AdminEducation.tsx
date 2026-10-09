@@ -6,7 +6,7 @@ import { ConfirmModal } from '../common/ConfirmModal';
 import { Plus, Edit2, Trash2, GraduationCap, Calendar, CheckCircle, FileQuestion, X, Save } from 'lucide-react';
 
 export const AdminEducation: React.FC = () => {
-  const { education, saveEducation, deleteEducation } = useData();
+  const { education, saveEducation, deleteEducation, lastSyncError } = useData();
   const { toast } = useToast();
 
   const [editingEdu, setEditingEdu] = useState<EducationItem | null>(null);
@@ -23,7 +23,7 @@ export const AdminEducation: React.FC = () => {
       endDate: '2027',
       description: 'Undergraduate software engineering degree.',
       coursework: ['Data Structures', 'Database Systems', 'Algorithms'],
-      achievements: ["Dean's Honor List"],
+      achievements: [],
       published: true,
       displayOrder: education.length + 1
     };
@@ -37,24 +37,24 @@ export const AdminEducation: React.FC = () => {
       return;
     }
     const degree = editingEdu.degree;
-    setEditingEdu(null);
     const ok = await saveEducation(editingEdu);
     if (ok) {
-      toast(`Education record "${degree}" saved and synced to database!`, 'success');
+      setEditingEdu(null);
+      toast(`Education record "${degree}" saved to PostgreSQL database!`, 'success');
     } else {
-      toast(`Education record saved locally.`, 'info');
+      toast(lastSyncError || `Failed to save education record.`, 'error');
     }
   };
 
   const handleDelete = async () => {
     if (!eduToDelete) return;
     const degree = eduToDelete.degree;
-    setEduToDelete(null);
     const ok = await deleteEducation(eduToDelete.id);
     if (ok) {
-      toast(`Education record "${degree}" deleted from database.`, 'info');
+      setEduToDelete(null);
+      toast(`Education record "${degree}" deleted from PostgreSQL database.`, 'info');
     } else {
-      toast(`Education record deleted locally.`, 'info');
+      toast(lastSyncError || `Failed to delete education record.`, 'error');
     }
   };
 

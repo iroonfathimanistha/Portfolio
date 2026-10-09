@@ -31,9 +31,13 @@ export const AdminSettings: React.FC = () => {
   const [confirmDeleteDemo, setConfirmDeleteDemo] = useState(false);
   const [confirmFactoryReset, setConfirmFactoryReset] = useState(false);
 
-  const handleSaveWebsite = () => {
-    updateProfile({ tagline: siteDescription });
-    toast('Website settings updated successfully!', 'success');
+  const handleSaveWebsite = async () => {
+    const ok = await updateProfile({ tagline: siteDescription });
+    if (ok) {
+      toast('Website settings saved to PostgreSQL database!', 'success');
+    } else {
+      toast('Failed to save website settings to database.', 'error');
+    }
   };
 
   const handleLogout = async () => {
@@ -41,16 +45,24 @@ export const AdminSettings: React.FC = () => {
     window.location.href = '/admin/login';
   };
 
-  const handleDeleteDemoConfirm = () => {
-    deleteAllDemoData();
+  const handleDeleteDemoConfirm = async () => {
+    const ok = await deleteAllDemoData();
     setConfirmDeleteDemo(false);
-    toast('All demo records have been cleared!', 'success');
+    if (ok) {
+      toast('All demo records have been cleared and saved to database!', 'success');
+    } else {
+      toast('Failed to clear records in database.', 'error');
+    }
   };
 
-  const handleResetConfirm = () => {
-    resetAllData();
+  const handleResetConfirm = async () => {
+    const ok = await resetAllData();
     setConfirmFactoryReset(false);
-    toast('Application reset to factory seed data!', 'success');
+    if (ok) {
+      toast('Application reset to factory seed data and saved to database!', 'success');
+    } else {
+      toast('Failed to reset data in database.', 'error');
+    }
   };
 
   return (

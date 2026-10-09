@@ -29,7 +29,7 @@ const SKILL_CATEGORIES = [
 ] as const;
 
 export const AdminSkills: React.FC = () => {
-  const { skills, saveSkill, deleteSkill } = useData();
+  const { skills, saveSkill, deleteSkill, lastSyncError } = useData();
   const { toast } = useToast();
 
   const [search, setSearch] = useState('');
@@ -76,11 +76,11 @@ export const AdminSkills: React.FC = () => {
       description: editingSkill.description?.trim() || '',
       officialUrl: editingSkill.officialUrl?.trim() || ''
     });
-    setEditingSkill(null);
     if (ok) {
-      toast(`Skill "${skillName}" saved and synced to database!`, 'success');
+      setEditingSkill(null);
+      toast(`Skill "${skillName}" saved to PostgreSQL database!`, 'success');
     } else {
-      toast(`Notice: Skill "${skillName}" saved locally. Verify database connection.`, 'info');
+      toast(lastSyncError || 'Failed to save skill. Check DATABASE_URL in Vercel.', 'error');
     }
   };
 
@@ -88,11 +88,11 @@ export const AdminSkills: React.FC = () => {
     if (!skillToDelete) return;
     const ok = await deleteSkill(skillToDelete.id);
     const deletedName = skillToDelete.name;
-    setSkillToDelete(null);
     if (ok) {
-      toast(`Skill "${deletedName}" removed and synced.`, 'info');
+      setSkillToDelete(null);
+      toast(`Skill "${deletedName}" removed from PostgreSQL database.`, 'info');
     } else {
-      toast(`Skill removed locally.`, 'info');
+      toast(lastSyncError || 'Failed to delete skill from database.', 'error');
     }
   };
 

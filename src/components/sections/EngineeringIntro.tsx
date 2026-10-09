@@ -37,15 +37,15 @@ export const EngineeringIntro: React.FC = () => {
                 "{profile.careerDirection}"
               </p>
             )}
-            <div className="flex items-center gap-6 pt-2 text-xs font-mono text-[var(--text-muted)]">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-6 pt-2 text-xs font-mono text-[var(--text-muted)]">
               <span className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                {profile.role || 'Undergraduate SE'}
+                {profile.role || 'Software Engineering Undergraduate'}
               </span>
               <span>·</span>
-              <span>Dean's List Honoree</span>
+              <span>Aspiring AI/ML Engineer</span>
               <span>·</span>
-              <span>Deterministic Architectures</span>
+              <span>Full-Stack Development</span>
             </div>
           </div>
         </div>

@@ -4,7 +4,7 @@ import { useToast } from '../common/Toast';
 import { FileText, Upload, Trash2, Eye, CheckCircle, ExternalLink, Save, AlertCircle } from 'lucide-react';
 
 export const AdminResume: React.FC = () => {
-  const { profile, updateProfile, syncToServer, addMediaItem } = useData();
+  const { profile, updateProfile, addMediaItem, lastSyncError } = useData();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
 
@@ -24,6 +24,24 @@ export const AdminResume: React.FC = () => {
     lastUpdated: resume.lastUpdated || 'October 2026'
   });
 
+  // Sync form state whenever fresh profile is loaded from PostgreSQL database
+  React.useEffect(() => {
+    const curResume = profile.resume || {
+      professionalTitle: profile.role,
+      summary: '',
+      resumePdfUrl: '',
+      published: true,
+      lastUpdated: 'October 2026'
+    };
+    setFormData({
+      professionalTitle: curResume.professionalTitle || profile.role,
+      summary: curResume.summary || '',
+      resumePdfUrl: curResume.resumePdfUrl || '',
+      published: curResume.published !== false,
+      lastUpdated: curResume.lastUpdated || 'October 2026'
+    });
+  }, [profile]);
+
   const [isUploading, setIsUploading] = useState(false);
 
   const handleSave = async () => {
@@ -33,15 +51,14 @@ export const AdminResume: React.FC = () => {
         ...formData,
         lastUpdated: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
       };
-      updateProfile({ resume: updatedResume });
-      const ok = await syncToServer({ profile: { ...profile, resume: updatedResume } });
+      const ok = await updateProfile({ resume: updatedResume });
       if (ok) {
-        toast('Resume settings and publication status updated and synced!', 'success');
+        toast('Resume settings saved to PostgreSQL database!', 'success');
       } else {
-        toast('Notice: Local state saved. Server sync pending.', 'info');
+        toast(lastSyncError || 'Failed to save resume to PostgreSQL.', 'error');
       }
-    } catch {
-      toast('Failed to save resume. Please try again.', 'error');
+    } catch (err: any) {
+      toast(err?.message || 'Failed to save resume. Please try again.', 'error');
     } finally {
       setIsSaving(false);
     }

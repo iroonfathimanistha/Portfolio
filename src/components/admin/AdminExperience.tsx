@@ -6,7 +6,7 @@ import { ConfirmModal } from '../common/ConfirmModal';
 import { Plus, Edit2, Trash2, Briefcase, Calendar, CheckCircle2, X } from 'lucide-react';
 
 export const AdminExperience: React.FC = () => {
-  const { experience, saveExperience, deleteExperience } = useData();
+  const { experience, saveExperience, deleteExperience, lastSyncError } = useData();
   const { toast } = useToast();
 
   const [editingExp, setEditingExp] = useState<ExperienceItem | null>(null);
@@ -35,24 +35,24 @@ export const AdminExperience: React.FC = () => {
       return;
     }
     const role = editingExp.role;
-    setEditingExp(null);
     const ok = await saveExperience(editingExp);
     if (ok) {
-      toast(`Experience record "${role}" saved and synced to database!`, 'success');
+      setEditingExp(null);
+      toast(`Experience record "${role}" saved to PostgreSQL database!`, 'success');
     } else {
-      toast(`Experience record saved locally.`, 'info');
+      toast(lastSyncError || `Failed to save experience record.`, 'error');
     }
   };
 
   const handleDelete = async () => {
     if (!expToDelete) return;
     const role = expToDelete.role;
-    setExpToDelete(null);
     const ok = await deleteExperience(expToDelete.id);
     if (ok) {
-      toast(`Experience record "${role}" deleted from database.`, 'info');
+      setExpToDelete(null);
+      toast(`Experience record "${role}" deleted from PostgreSQL database.`, 'info');
     } else {
-      toast(`Experience record deleted locally.`, 'info');
+      toast(lastSyncError || `Failed to delete experience record.`, 'error');
     }
   };
 

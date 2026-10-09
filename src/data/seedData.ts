@@ -412,7 +412,7 @@ export const initialEducation: EducationItem[] = [
     degree: 'BSc (Hons) in Software Engineering',
     startDate: '2023',
     endDate: 'Present (Expected 2027)',
-    description: 'Undergraduate engineering curriculum emphasizing discrete mathematics, concurrent algorithms, distributed systems, relational modeling, and verified compiler fundamentals. Cumulative GPA: 3.86/4.00 (Dean\'s Honor List for 3 consecutive academic years).',
+    description: 'Undergraduate engineering curriculum emphasizing discrete mathematics, concurrent algorithms, distributed systems, relational modeling, and verified compiler fundamentals. Cumulative GPA: 3.86/4.00.',
     coursework: [
       'Data Structures & Algorithms',
       'Relational Database Systems (SQL)',
@@ -422,7 +422,6 @@ export const initialEducation: EducationItem[] = [
       'Web Architecture & API Security'
     ],
     achievements: [
-      'Dean\'s Honor List for Academic Excellence (2024, 2025, 2026)',
       'Peer Academic Mentor for Algorithms & Object-Oriented Programming',
       'Lead student representative for Faculty Computing Colloquium'
     ],
@@ -535,16 +534,6 @@ export const initialActivities: ActivityItem[] = [
 ];
 
 export const initialAchievements: Achievement[] = [
-  {
-    id: 'ach-1',
-    title: 'Dean\'s Honor List for Academic Excellence',
-    category: 'Academic Honor',
-    organization: 'Faculty of Computing & Information Technology',
-    date: '2024, 2025, 2026',
-    description: 'Awarded for maintaining a cumulative GPA of 3.86/4.00 across all core software engineering courses.',
-    featured: true,
-    published: true
-  },
   {
     id: 'ach-2',
     title: 'Top 3 Finalist — National HackSprint 2026',

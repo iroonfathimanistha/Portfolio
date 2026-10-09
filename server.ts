@@ -4,6 +4,7 @@ import path from 'path';
 import crypto from 'crypto';
 import cookieParser from 'cookie-parser';
 import { fileURLToPath } from 'url';
+import pg from 'pg';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -277,8 +278,98 @@ app.post('/api/auth/change-password', requireAdminAuth, (req, res) => {
   return res.json({ success: true, message: 'Password updated successfully.' });
 });
 
+// --- POSTGRESQL DATABASE INTEGRATION ---
+let serverDbPool: pg.Pool | null = null;
+let serverPoolConnString: string | null = null;
+let serverTableReady = false;
+
+function getServerDbPool(): pg.Pool | null {
+  const dbUrl = (process.env.DATABASE_URL || process.env.POSTGRES_URL || '').trim();
+  if (!dbUrl) {
+    if (serverDbPool) {
+      serverDbPool.end().catch(() => {});
+      serverDbPool = null;
+      serverPoolConnString = null;
+      serverTableReady = false;
+    }
+    return null;
+  }
+
+  if (!serverDbPool || serverPoolConnString !== dbUrl) {
+    if (serverDbPool) {
+      serverDbPool.end().catch(() => {});
+    }
+    serverPoolConnString = dbUrl;
+    serverTableReady = false;
+    const isLocal = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1');
+    serverDbPool = new pg.Pool({
+      connectionString: dbUrl,
+      ssl: isLocal ? false : { rejectUnauthorized: false },
+      max: 5,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000
+    });
+
+    serverDbPool.on('error', (err) => {
+      console.error('[Server PostgreSQL Error]:', err.message);
+      serverTableReady = false;
+    });
+  }
+  return serverDbPool;
+}
+
+async function ensureServerTable(pool: pg.Pool): Promise<void> {
+  if (serverTableReady) return;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS portfolio_cms (
+      id VARCHAR(50) PRIMARY KEY,
+      data JSONB NOT NULL,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+  `);
+  serverTableReady = true;
+}
+
 // --- CMS DATA PERSISTENCE API ---
-app.get('/api/data', (_req, res) => {
+app.get('/api/data', async (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  const pool = getServerDbPool();
+
+  if (pool) {
+    try {
+      await ensureServerTable(pool);
+      const queryResult = await pool.query(`SELECT data, updated_at FROM portfolio_cms WHERE id = 'main' LIMIT 1;`);
+      if (queryResult.rows && queryResult.rows.length > 0 && queryResult.rows[0].data) {
+        let dbData = queryResult.rows[0].data;
+        if (typeof dbData === 'string') {
+          try {
+            dbData = JSON.parse(dbData);
+          } catch (e) {
+            console.warn('[Server DB] Could not parse dbData string:', e);
+          }
+        }
+        res.setHeader('x-database-status', 'CONNECTED');
+        return res.json(dbData);
+      }
+
+      // Seed if empty
+      if (fs.existsSync(DB_FILE)) {
+        const seedData = JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
+        await pool.query(
+          `INSERT INTO portfolio_cms (id, data, updated_at) VALUES ('main', $1::jsonb, NOW()) ON CONFLICT (id) DO NOTHING;`,
+          [JSON.stringify(seedData)]
+        );
+        res.setHeader('x-database-status', 'SEEDED');
+        return res.json(seedData);
+      }
+      return res.json({ empty: true });
+    } catch (err: any) {
+      console.error('[Server DB] PostgreSQL query error:', err.message);
+      return res.status(500).json({ error: 'DATABASE_QUERY_FAILED', message: err.message });
+    }
+  }
+
+  // Local JSON fallback if DATABASE_URL not set
   try {
     if (fs.existsSync(DB_FILE)) {
       const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
@@ -290,11 +381,54 @@ app.get('/api/data', (_req, res) => {
   return res.json({ empty: true });
 });
 
-app.post('/api/data', requireAdminAuth, (req, res) => {
+app.post('/api/data', requireAdminAuth, async (req, res) => {
+  const pool = getServerDbPool();
+  const payload = req.body;
+
+  if (pool) {
+    try {
+      await ensureServerTable(pool);
+      let currentData: any = {};
+      const currentRes = await pool.query(`SELECT data FROM portfolio_cms WHERE id = 'main' LIMIT 1;`);
+      if (currentRes.rows && currentRes.rows.length > 0 && currentRes.rows[0].data) {
+        const raw = currentRes.rows[0].data;
+        currentData = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      } else if (fs.existsSync(DB_FILE)) {
+        currentData = JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
+      }
+
+      const merged = {
+        ...(currentData && !currentData.empty ? currentData : {}),
+        ...payload,
+        lastUpdated: new Date().toISOString()
+      };
+
+      const writeResult = await pool.query(
+        `INSERT INTO portfolio_cms (id, data, updated_at)
+         VALUES ('main', $1::jsonb, NOW())
+         ON CONFLICT (id) DO UPDATE SET data = $1::jsonb, updated_at = NOW()
+         RETURNING updated_at;`,
+        [JSON.stringify(merged)]
+      );
+
+      const savedTimestamp = writeResult.rows[0]?.updated_at || new Date().toISOString();
+      return res.json({
+        success: true,
+        provider: 'PostgreSQL',
+        message: 'Portfolio record successfully persisted to PostgreSQL database.',
+        savedAt: savedTimestamp,
+        data: merged
+      });
+    } catch (err: any) {
+      console.error('[Server DB] PostgreSQL write error:', err.message);
+      return res.status(500).json({ error: 'POSTGRESQL_WRITE_FAILED', message: err.message });
+    }
+  }
+
+  // Local fallback if no DATABASE_URL
   try {
-    const data = req.body;
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
-    return res.json({ success: true, savedAt: new Date().toISOString() });
+    fs.writeFileSync(DB_FILE, JSON.stringify(payload, null, 2), 'utf-8');
+    return res.json({ success: true, savedAt: new Date().toISOString(), data: payload });
   } catch (err) {
     console.error('[DB] Failed to save database:', err);
     return res.status(500).json({ error: 'Failed to write data to server storage.' });

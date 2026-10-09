@@ -4,7 +4,7 @@ import { useToast } from '../common/Toast';
 import { Info, Plus, Trash2, ArrowUp, ArrowDown, Save, Sparkles, Target } from 'lucide-react';
 
 export const AdminAbout: React.FC = () => {
-  const { profile, updateProfile, syncToServer } = useData();
+  const { profile, updateProfile, lastSyncError } = useData();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
 
@@ -23,6 +23,16 @@ export const AdminAbout: React.FC = () => {
   const [newInterest, setNewInterest] = useState('');
   const [newPrinciple, setNewPrinciple] = useState('');
 
+  // Sync form state whenever fresh profile is loaded from PostgreSQL database
+  React.useEffect(() => {
+    setAboutText(profile.aboutText || '');
+    setCareerDirection(profile.careerDirection || '');
+    setInterests(profile.engineeringInterests || []);
+    if (profile.engineeringPrinciples && profile.engineeringPrinciples.length > 0) {
+      setPrinciples(profile.engineeringPrinciples);
+    }
+  }, [profile]);
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -32,15 +42,14 @@ export const AdminAbout: React.FC = () => {
         engineeringInterests: interests,
         engineeringPrinciples: principles
       };
-      updateProfile(updated);
-      const ok = await syncToServer({ profile: { ...profile, ...updated } });
+      const ok = await updateProfile(updated);
       if (ok) {
-        toast('About section content saved and synced to database!', 'success');
+        toast('About section saved to PostgreSQL database!', 'success');
       } else {
-        toast('Notice: Local state saved. Server sync pending.', 'info');
+        toast(lastSyncError || 'Failed to save to PostgreSQL. Verify DATABASE_URL in Vercel.', 'error');
       }
-    } catch {
-      toast('Failed to save changes. Please try again.', 'error');
+    } catch (err: any) {
+      toast(err?.message || 'Failed to save changes. Please try again.', 'error');
     } finally {
       setIsSaving(false);
     }

@@ -66,31 +66,32 @@ interface DataContextType {
   saveCertification: (cert: Certification) => Promise<boolean>;
   deleteCertification: (id: string) => Promise<boolean>;
   activities: ActivityItem[];
-  saveActivity: (act: ActivityItem) => void;
-  deleteActivity: (id: string) => void;
+  saveActivity: (act: ActivityItem) => Promise<boolean>;
+  deleteActivity: (id: string) => Promise<boolean>;
   achievements: Achievement[];
-  saveAchievement: (achieve: Achievement) => void;
-  deleteAchievement: (id: string) => void;
+  saveAchievement: (achieve: Achievement) => Promise<boolean>;
+  deleteAchievement: (id: string) => Promise<boolean>;
   learningItems: LearningItem[];
-  saveLearningItem: (item: LearningItem) => void;
-  deleteLearningItem: (id: string) => void;
+  saveLearningItem: (item: LearningItem) => Promise<boolean>;
+  deleteLearningItem: (id: string) => Promise<boolean>;
   activityFeed: ActivityFeedItem[];
   blogPosts: BlogPost[];
   getPublishedBlogPosts: () => BlogPost[];
   getBlogPostBySlug: (slug: string) => BlogPost | undefined;
-  saveBlogPost: (post: BlogPost) => void;
-  deleteBlogPost: (id: string) => void;
+  saveBlogPost: (post: BlogPost) => Promise<boolean>;
+  deleteBlogPost: (id: string) => Promise<boolean>;
   mediaItems: MediaItem[];
-  addMediaItem: (item: MediaItem) => void;
-  deleteMediaItem: (id: string) => void;
+  addMediaItem: (item: MediaItem) => Promise<boolean>;
+  deleteMediaItem: (id: string) => Promise<boolean>;
   messages: ContactMessage[];
   submitMessage: (message: Omit<ContactMessage, 'id' | 'receivedAt' | 'read'>) => Promise<boolean>;
-  markMessageRead: (id: string) => void;
-  deleteMessage: (id: string) => void;
-  deleteAllDemoData: () => void;
-  resetAllData: () => void;
+  markMessageRead: (id: string) => Promise<boolean>;
+  deleteMessage: (id: string) => Promise<boolean>;
+  deleteAllDemoData: () => Promise<boolean>;
+  resetAllData: () => Promise<boolean>;
   syncToServer: (customPayload?: any) => Promise<boolean>;
   refreshData: () => Promise<void>;
+  lastSyncError: string | null;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -122,7 +123,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
   const [projects, setProjects] = useState<Project[]>(() => getStored('projects', initialProjects));
   const [skills, setSkills] = useState<SkillItem[]>(() => getStored('skills', initialSkills));
-  const [focusAreas] = useState<FocusArea[]>(() => getStored('focusAreas', initialFocusAreas));
+  const [focusAreas, setFocusAreas] = useState<FocusArea[]>(() => getStored('focusAreas', initialFocusAreas));
   const [education, setEducation] = useState<EducationItem[]>(() => getStored('education', initialEducation));
   const [experience, setExperience] = useState<ExperienceItem[]>(() => getStored('experience', initialExperience));
   const [journey, setJourney] = useState<JourneyMilestone[]>(() => getStored('journey', initialJourney));
@@ -143,56 +144,81 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [mediaItems, setMediaItems] = useState<MediaItem[]>(() => getStored('mediaItems', initialMediaItems));
   const [messages, setMessages] = useState<ContactMessage[]>(() => getStored('messages', initialMessages));
 
+  const applyDataToState = (data: any) => {
+    if (!data || data.empty) return;
+    if (data.profile) {
+      setProfile(data.profile);
+      setStored('profile', data.profile);
+    }
+    if (data.projects) {
+      setProjects(data.projects);
+      setStored('projects', data.projects);
+    }
+    if (data.skills) {
+      setSkills(data.skills);
+      setStored('skills', data.skills);
+    }
+    if (data.education) {
+      setEducation(data.education);
+      setStored('education', data.education);
+    }
+    if (data.experience) {
+      setExperience(data.experience);
+      setStored('experience', data.experience);
+    }
+    if (data.journey) {
+      setJourney(data.journey);
+      setStored('journey', data.journey);
+    }
+    if (data.certifications) {
+      setCertifications(data.certifications);
+      setStored('certifications', data.certifications);
+    }
+    if (data.focusAreas) {
+      setFocusAreas(data.focusAreas);
+      setStored('focusAreas', data.focusAreas);
+    }
+    if (data.activities) {
+      setActivities(data.activities);
+      setStored('activities', data.activities);
+    }
+    if (data.achievements) {
+      setAchievements(data.achievements);
+      setStored('achievements', data.achievements);
+    }
+    if (data.learningItems) {
+      setLearningItems(data.learningItems);
+      setStored('learningItems', data.learningItems);
+    }
+    if (data.activityFeed) {
+      setActivityFeed(data.activityFeed);
+      setStored('activityFeed', data.activityFeed);
+    }
+    if (data.mediaItems) {
+      setMediaItems(data.mediaItems);
+      setStored('mediaItems', data.mediaItems);
+    }
+    if (data.messages) {
+      setMessages(data.messages);
+      setStored('messages', data.messages);
+    }
+    if (data.blogPosts) {
+      setBlogPosts(data.blogPosts);
+      setStored('blogPosts', data.blogPosts);
+    }
+    if (data.sectionsConfig) {
+      setSectionsConfig(data.sectionsConfig);
+      setStored('sectionsConfig', data.sectionsConfig);
+    }
+  };
+
   const refreshData = async (): Promise<void> => {
     try {
       const res = await fetch('/api/data', { cache: 'no-store' });
       if (!res.ok) return;
       const data = await res.json();
       if (data && !data.empty) {
-        if (data.profile) {
-          setProfile(data.profile);
-          setStored('profile', data.profile);
-        }
-        if (data.projects) {
-          setProjects(data.projects);
-          setStored('projects', data.projects);
-        }
-        if (data.skills) {
-          setSkills(data.skills);
-          setStored('skills', data.skills);
-        }
-        if (data.education) {
-          setEducation(data.education);
-          setStored('education', data.education);
-        }
-        if (data.experience) {
-          setExperience(data.experience);
-          setStored('experience', data.experience);
-        }
-        if (data.journey) {
-          setJourney(data.journey);
-          setStored('journey', data.journey);
-        }
-        if (data.certifications) {
-          setCertifications(data.certifications);
-          setStored('certifications', data.certifications);
-        }
-        if (data.mediaItems) {
-          setMediaItems(data.mediaItems);
-          setStored('mediaItems', data.mediaItems);
-        }
-        if (data.messages) {
-          setMessages(data.messages);
-          setStored('messages', data.messages);
-        }
-        if (data.blogPosts) {
-          setBlogPosts(data.blogPosts);
-          setStored('blogPosts', data.blogPosts);
-        }
-        if (data.sectionsConfig) {
-          setSectionsConfig(data.sectionsConfig);
-          setStored('sectionsConfig', data.sectionsConfig);
-        }
+        applyDataToState(data);
       }
     } catch (err) {
       console.warn('[DataContext] Server sync load notice:', err);
@@ -211,6 +237,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
+  const [lastSyncError, setLastSyncError] = useState<string | null>(null);
+
   const syncToServer = async (customPayload?: any): Promise<boolean> => {
     try {
       const storedToken = sessionStorage.getItem('cms_bearer_token');
@@ -221,7 +249,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers['Authorization'] = `Bearer ${storedToken}`;
       }
 
-      const payload = {
+      // If specific customPayload is provided (e.g. { profile: updated }), send ONLY that payload
+      // so PostgreSQL merges it atomically without overwriting other collections with stale React state.
+      const payload = customPayload || {
         profile,
         sectionsConfig,
         projects,
@@ -237,8 +267,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         activityFeed,
         mediaItems,
         messages,
-        blogPosts,
-        ...(customPayload || {})
+        blogPosts
       };
 
       const res = await fetch('/api/data', {
@@ -249,15 +278,38 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (!res.ok) {
-        const text = await res.text();
-        console.error('[DataContext] Server sync status:', res.status, text);
+        let errorMsg = `Server error ${res.status}`;
+        try {
+          const errJson = await res.json();
+          errorMsg = errJson.message || errJson.error || errorMsg;
+        } catch {
+          const text = await res.text();
+          if (text) errorMsg = text.slice(0, 150);
+        }
+        console.error('[DataContext] Server sync error:', errorMsg);
+        setLastSyncError(errorMsg);
         return false;
       }
 
       const resJson = await res.json();
-      return resJson.success === true;
-    } catch (err) {
-      console.error('[DataContext] Server sync network error:', err);
+      if (!resJson.success) {
+        const errorMsg = resJson.message || resJson.error || 'Database save failed';
+        console.error('[DataContext] Database sync unsuccessful:', errorMsg);
+        setLastSyncError(errorMsg);
+        return false;
+      }
+
+      // Authoritatively update state from PostgreSQL response
+      if (resJson.data) {
+        applyDataToState(resJson.data);
+      }
+
+      setLastSyncError(null);
+      return true;
+    } catch (err: any) {
+      const errorMsg = err?.message || 'Network error occurred during database sync';
+      console.error('[DataContext] Server sync network error:', errorMsg);
+      setLastSyncError(errorMsg);
       return false;
     }
   };
@@ -413,131 +465,173 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return syncToServer({ certifications: next });
   };
 
-  const saveActivity = (act: ActivityItem) => {
-    setActivities(prev => {
-      const idx = prev.findIndex(a => a.id === act.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = act;
-        return next;
-      }
-      return [act, ...prev];
-    });
+  const saveActivity = (act: ActivityItem): Promise<boolean> => {
+    let next: ActivityItem[] = [];
+    const idx = activities.findIndex(a => a.id === act.id);
+    if (idx >= 0) {
+      next = [...activities];
+      next[idx] = act;
+    } else {
+      next = [act, ...activities];
+    }
+    setActivities(next);
+    setStored('activities', next);
+    return syncToServer({ activities: next });
   };
 
-  const deleteActivity = (id: string) => {
-    setActivities(prev => prev.filter(a => a.id !== id));
+  const deleteActivity = (id: string): Promise<boolean> => {
+    const next = activities.filter(a => a.id !== id);
+    setActivities(next);
+    setStored('activities', next);
+    return syncToServer({ activities: next });
   };
 
-  const saveAchievement = (achieve: Achievement) => {
-    setAchievements(prev => {
-      const idx = prev.findIndex(a => a.id === achieve.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = achieve;
-        return next;
-      }
-      return [achieve, ...prev];
-    });
+  const saveAchievement = (achieve: Achievement): Promise<boolean> => {
+    let next: Achievement[] = [];
+    const idx = achievements.findIndex(a => a.id === achieve.id);
+    if (idx >= 0) {
+      next = [...achievements];
+      next[idx] = achieve;
+    } else {
+      next = [achieve, ...achievements];
+    }
+    setAchievements(next);
+    setStored('achievements', next);
+    return syncToServer({ achievements: next });
   };
 
-  const deleteAchievement = (id: string) => {
-    setAchievements(prev => prev.filter(a => a.id !== id));
+  const deleteAchievement = (id: string): Promise<boolean> => {
+    const next = achievements.filter(a => a.id !== id);
+    setAchievements(next);
+    setStored('achievements', next);
+    return syncToServer({ achievements: next });
   };
 
-  const saveLearningItem = (item: LearningItem) => {
-    setLearningItems(prev => {
-      const idx = prev.findIndex(l => l.id === item.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = item;
-        return next;
-      }
-      return [...prev, item];
-    });
+  const saveLearningItem = (item: LearningItem): Promise<boolean> => {
+    let next: LearningItem[] = [];
+    const idx = learningItems.findIndex(l => l.id === item.id);
+    if (idx >= 0) {
+      next = [...learningItems];
+      next[idx] = item;
+    } else {
+      next = [...learningItems, item];
+    }
+    setLearningItems(next);
+    setStored('learningItems', next);
+    return syncToServer({ learningItems: next });
   };
 
-  const deleteLearningItem = (id: string) => {
-    setLearningItems(prev => prev.filter(l => l.id !== id));
+  const deleteLearningItem = (id: string): Promise<boolean> => {
+    const next = learningItems.filter(l => l.id !== id);
+    setLearningItems(next);
+    setStored('learningItems', next);
+    return syncToServer({ learningItems: next });
   };
 
   const getPublishedBlogPosts = () => blogPosts.filter(b => b.published);
   const getBlogPostBySlug = (slug: string) => blogPosts.find(b => b.slug === slug || b.id === slug);
 
-  const saveBlogPost = (post: BlogPost) => {
-    setBlogPosts(prev => {
-      const idx = prev.findIndex(b => b.id === post.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = post;
-        return next;
-      }
-      return [post, ...prev];
-    });
+  const saveBlogPost = (post: BlogPost): Promise<boolean> => {
+    let next: BlogPost[] = [];
+    const idx = blogPosts.findIndex(b => b.id === post.id);
+    if (idx >= 0) {
+      next = [...blogPosts];
+      next[idx] = post;
+    } else {
+      next = [post, ...blogPosts];
+    }
+    setBlogPosts(next);
+    setStored('blogPosts', next);
+    return syncToServer({ blogPosts: next });
   };
 
-  const deleteBlogPost = (id: string) => {
-    setBlogPosts(prev => prev.filter(b => b.id !== id));
+  const deleteBlogPost = (id: string): Promise<boolean> => {
+    const next = blogPosts.filter(b => b.id !== id);
+    setBlogPosts(next);
+    setStored('blogPosts', next);
+    return syncToServer({ blogPosts: next });
   };
 
-  const addMediaItem = (item: MediaItem) => {
-    setMediaItems(prev => [item, ...prev]);
+  const addMediaItem = (item: MediaItem): Promise<boolean> => {
+    const next = [item, ...mediaItems];
+    setMediaItems(next);
+    setStored('mediaItems', next);
+    return syncToServer({ mediaItems: next });
   };
 
-  const deleteMediaItem = (id: string) => {
-    setMediaItems(prev => prev.filter(m => m.id !== id));
+  const deleteMediaItem = (id: string): Promise<boolean> => {
+    const next = mediaItems.filter(m => m.id !== id);
+    setMediaItems(next);
+    setStored('mediaItems', next);
+    return syncToServer({ mediaItems: next });
   };
 
   const submitMessage = async (msgData: Omit<ContactMessage, 'id' | 'receivedAt' | 'read'>): Promise<boolean> => {
-    await new Promise(resolve => setTimeout(resolve, 600));
     const newMsg: ContactMessage = {
       ...msgData,
       id: 'msg-' + Date.now(),
       receivedAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
       read: false
     };
-    setMessages(prev => [newMsg, ...prev]);
+    const next = [newMsg, ...messages];
+    setMessages(next);
+    setStored('messages', next);
+    await syncToServer({ messages: next });
     return true;
   };
 
-  const markMessageRead = (id: string) => {
-    setMessages(prev => prev.map(m => (m.id === id ? { ...m, read: true } : m)));
+  const markMessageRead = (id: string): Promise<boolean> => {
+    const next = messages.map(m => (m.id === id ? { ...m, read: true } : m));
+    setMessages(next);
+    setStored('messages', next);
+    return syncToServer({ messages: next });
   };
 
-  const deleteMessage = (id: string) => {
-    setMessages(prev => prev.filter(m => m.id !== id));
+  const deleteMessage = (id: string): Promise<boolean> => {
+    const next = messages.filter(m => m.id !== id);
+    setMessages(next);
+    setStored('messages', next);
+    return syncToServer({ messages: next });
   };
 
-  const deleteAllDemoData = () => {
-    // Clear demo records as per Page 23 of specs
-    setProjects([]);
-    setEducation([]);
-    setExperience([]);
-    setJourney([]);
-    setCertifications([]);
-    setActivities([]);
-    setAchievements([]);
-    setLearningItems([]);
-    setBlogPosts([]);
-    setMessages([]);
+  const deleteAllDemoData = async (): Promise<boolean> => {
+    const cleared = {
+      projects: [],
+      education: [],
+      experience: [],
+      journey: [],
+      certifications: [],
+      activities: [],
+      achievements: [],
+      learningItems: [],
+      blogPosts: [],
+      messages: []
+    };
+    applyDataToState(cleared);
+    return syncToServer(cleared);
   };
 
-  const resetAllData = () => {
-    setProfile(initialProfile);
-    setSectionsConfig(initialSectionsConfig);
-    setProjects(initialProjects);
-    setSkills(initialSkills);
-    setEducation(initialEducation);
-    setExperience(initialExperience);
-    setJourney(initialJourney);
-    setCertifications(initialCertifications);
-    setActivities(initialActivities);
-    setAchievements(initialAchievements);
-    setLearningItems(initialLearningItems);
-    setActivityFeed(initialActivityFeed);
-    setBlogPosts(initialBlogPosts);
-    setMediaItems(initialMediaItems);
-    setMessages(initialMessages);
+  const resetAllData = async (): Promise<boolean> => {
+    const initialData = {
+      profile: initialProfile,
+      sectionsConfig: initialSectionsConfig,
+      projects: initialProjects,
+      skills: initialSkills,
+      focusAreas: initialFocusAreas,
+      education: initialEducation,
+      experience: initialExperience,
+      journey: initialJourney,
+      certifications: initialCertifications,
+      activities: initialActivities,
+      achievements: initialAchievements,
+      learningItems: initialLearningItems,
+      activityFeed: initialActivityFeed,
+      blogPosts: initialBlogPosts,
+      mediaItems: initialMediaItems,
+      messages: initialMessages
+    };
+    applyDataToState(initialData);
+    return syncToServer(initialData);
   };
 
   return (
@@ -595,7 +689,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         deleteAllDemoData,
         resetAllData,
         syncToServer,
-        refreshData
+        refreshData,
+        lastSyncError
       }}
     >
       {children}

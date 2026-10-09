@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export const AdminProfile: React.FC = () => {
-  const { profile, updateProfile, syncToServer } = useData();
+  const { profile, updateProfile, lastSyncError } = useData();
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({ ...profile });
@@ -29,18 +29,22 @@ export const AdminProfile: React.FC = () => {
   });
   const [showAddSocial, setShowAddSocial] = useState(false);
 
+  // Sync form state whenever fresh profile is loaded from PostgreSQL database
+  React.useEffect(() => {
+    setFormData({ ...profile });
+  }, [profile]);
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      updateProfile(formData);
-      const ok = await syncToServer({ profile: formData });
+      const ok = await updateProfile(formData);
       if (ok) {
-        toast('Profile and identity saved and synced to database!', 'success');
+        toast('Profile and identity saved to PostgreSQL database!', 'success');
       } else {
-        toast('Notice: Local state saved. Server sync pending or requires re-login.', 'info');
+        toast(lastSyncError || 'Failed to save to PostgreSQL. Verify DATABASE_URL in Vercel.', 'error');
       }
-    } catch {
-      toast('Failed to save profile. Please retry.', 'error');
+    } catch (err: any) {
+      toast(err?.message || 'Failed to save profile. Please retry.', 'error');
     } finally {
       setIsSaving(false);
     }

@@ -39,7 +39,7 @@ export const AchievementsGrid: React.FC = () => {
             </h2>
           </div>
           <p className="text-sm text-[var(--text-secondary)] max-w-md">
-            Verified competitive programming hackathon finishes and sustained academic honor standings.
+            Verified competitive programming hackathon finishes and engineering project achievements.
           </p>
         </div>
 
